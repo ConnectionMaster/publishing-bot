@@ -40,7 +40,6 @@ build:
 	$(call build_cmd,publishing-bot)
 	$(call build_cmd,sync-tags)
 	$(call build_cmd,init-repo)
-	$(call build_cmd,godeps-gen)
 	$(call build_cmd,gomod-zip)
 .PHONY: build
 
@@ -87,3 +86,6 @@ deploy: init-deploy
 	{ cat artifacts/manifests/rs.yaml && sed 's/^/      /' artifacts/manifests/podspec.yaml; } | \
 	$(call prepare_spec) | sed 's/-interval=0/-interval=$(INTERVAL)/g' | \
 	$(KUBECTL) apply -n "$(NAMESPACE)" -f -
+
+test: ## Run go tests
+	go test -v -coverprofile=coverage.out ./...

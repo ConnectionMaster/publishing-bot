@@ -37,25 +37,28 @@ repos=(
     apiextensions-apiserver
     apimachinery
     apiserver
-    client-go
     cli-runtime
+    client-go
     cloud-provider
     cluster-bootstrap
     code-generator
     component-base
     component-helpers
+    controller-manager
     cri-api
     csi-api
     csi-translation-lib
     kube-aggregator
     kube-controller-manager
-    kubectl
-    kubelet
     kube-proxy
     kube-scheduler
+    kubectl
+    kubelet
     legacy-cloud-providers
     metrics
+    mount-utils
     node-api
+    pod-security-admission
     sample-apiserver
     sample-cli-plugin
     sample-controller

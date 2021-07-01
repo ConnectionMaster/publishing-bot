@@ -65,16 +65,6 @@ func updateGomodWithTaggedDependencies(tag string, depsRepo []string, semverTag 
 			pseudoVersionOrTag = tag
 		}
 
-		// in case the pseudoVersion/tag has not changed, running go mod download will help
-		// in avoiding packaging it up if the pseudoVersion/tag has been published already
-		downloadCommand := exec.Command("go", "mod", "download")
-		downloadCommand.Env = append(os.Environ(), "GO111MODULE=on", fmt.Sprintf("GOPRIVATE=%s", depPackages), "GOPROXY=https://proxy.golang.org")
-		downloadCommand.Stdout = os.Stdout
-		downloadCommand.Stderr = os.Stderr
-		if err := downloadCommand.Run(); err != nil {
-			return changed, fmt.Errorf("error running go mod download for %s: %v", depPkg, err)
-		}
-
 		// check if we have the pseudoVersion/tag published already. if we don't, package it up
 		// and save to local mod download cache.
 		if err := packageDepToGoModCache(depPath, depPkg, rev, pseudoVersionOrTag, commitTime); err != nil {
@@ -117,7 +107,7 @@ func updateGomodWithTaggedDependencies(tag string, depsRepo []string, semverTag 
 	}
 
 	tidyCommand := exec.Command("go", "mod", "tidy")
-	tidyCommand.Env = append(os.Environ(), "GO111MODULE=on", fmt.Sprintf("GOPROXY=file://%s/pkg/mod/cache/download", os.Getenv("GOPATH")))
+	tidyCommand.Env = append(os.Environ(), "GO111MODULE=on", fmt.Sprintf("GOPROXY=file://%s/pkg/mod/cache/download", os.Getenv("GOPATH")), fmt.Sprintf("GOPRIVATE=%s", depPackages))
 	tidyCommand.Stdout = os.Stdout
 	tidyCommand.Stderr = os.Stderr
 	if err := tidyCommand.Run(); err != nil {
@@ -267,4 +257,28 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 	}
 	return out.Close()
+}
+
+// fullPackageName return the Golang full package name of dir inside the ${GOPATH}/src.
+func fullPackageName(dir string) (string, error) {
+	gopath := os.Getenv("GOPATH")
+	if len(gopath) == 0 {
+		return "", fmt.Errorf("GOPATH is not set")
+	}
+
+	absGopath, err := filepath.Abs(gopath)
+	if err != nil {
+		return "", fmt.Errorf("failed to make GOPATH %q absolute: %v", gopath, err)
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("failed to make %q absolute: %v", dir, err)
+	}
+
+	if !strings.HasPrefix(filepath.ToSlash(absDir), filepath.ToSlash(absGopath)+"/src/") {
+		return "", fmt.Errorf("path %q is no inside GOPATH %q", dir, gopath)
+	}
+
+	return absDir[len(filepath.ToSlash(absGopath)+"/src/"):], nil
 }

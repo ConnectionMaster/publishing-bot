@@ -7,10 +7,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/blang/semver"
 	"github.com/golang/glog"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -53,21 +53,23 @@ type BranchRule struct {
 	Dependencies     []Dependency `yaml:"dependencies,omitempty"`
 	Source           Source       `yaml:"source"`
 	RequiredPackages []string     `yaml:"required-packages,omitempty"`
+	// SmokeTest applies only to the specific branch
+	SmokeTest string `yaml:"smoke-test,omitempty"` // a multiline bash script
 }
 
 // a collection of publishing rules for a single destination repo
 type RepositoryRule struct {
 	DestinationRepository string       `yaml:"destination"`
 	Branches              []BranchRule `yaml:"branches"`
-	SmokeTest             string       `yaml:"smoke-test,omitempty"` // a multiline bash script
-	Library               bool         `yaml:"library,omitempty"`
+	// SmokeTest applies to all branches
+	SmokeTest string `yaml:"smoke-test,omitempty"` // a multiline bash script
+	Library   bool   `yaml:"library,omitempty"`
 	// not updated when true
 	Skip bool `yaml:"skipped,omitempty"`
 }
 
 type RepositoryRules struct {
 	SkippedSourceBranches []string         `yaml:"skip-source-branches"`
-	SkipGodeps            bool             `yaml:"skip-godeps"`
 	SkipGomod             bool             `yaml:"skip-gomod"`
 	SkipTags              bool             `yaml:"skip-tags"`
 	Rules                 []RepositoryRule `yaml:"rules"`
@@ -164,22 +166,15 @@ func validateGoVersions(rules *RepositoryRules) (errs []error) {
 	return errs
 }
 
+// goVerRegex is the regex for a valid go version.
+// go versions don't follow semver. Examples:
+// 1. 1.15.0 is invalid, 1.15 is valid
+// 2. 1.15.0-rc.1 is invalid, 1.15rc1 is valid
+var goVerRegex = regexp.MustCompile(`^([0-9]+)\.([0-9]\w*)(\.[1-9]\d*\w*)*$`)
+
 func ensureValidGoVersion(version string) error {
-	s := version
-	parts := strings.SplitN(s, ".", 3)
-
-	// go uses 1.14 instead of 1.14.0 for its versions
-	if len(parts) == 3 && version[len(version)-2:] == ".0" {
-		return fmt.Errorf("go version %s should not contain the .0 suffix", version)
-	}
-
-	// the semver library requires a patch version, so append a .0
-	// to be able to validate the major/minor versions
-	if len(parts) == 2 {
-		s = s + ".0"
-	}
-	if _, err := semver.Parse(s); err != nil {
-		return fmt.Errorf("specified go version %s must be a valid go version: %v", version, err)
+	if !goVerRegex.MatchString(version) {
+		return fmt.Errorf("specified go version %s is invalid", version)
 	}
 	return nil
 }
